@@ -171,7 +171,6 @@ app.http("ReservationUnitFull", {
   authLevel: "function",
   handler: async (request, context) => {
     context.log(`Http function processed request for url "${request.url}"`);
-    // context.log("HTTP STATUS", context.Response.StatusCode);
 
     //Get API key from request headers and test against expected key
     const requestApiKey = request.headers.get("x-functions-key");
@@ -237,19 +236,39 @@ app.http("ReservationUnitFull", {
     // Calculate the total number of pages based on the page size and total number of documents
     const totalpages = Math.ceil(totalrows / pageSize);
 
-    // Set up a response object with pagination headers
-    const response = {
-      body: JSON.stringify(resources),
-      headers: {
-        "Content-Type": "application/json",
-        "X-Total-Count": totalrows,
-        "X-Page-Size": pageSize,
-        "X-Page-Number": pageNumber,
-        "X-Page-Count": totalpages,
-      },
-    };
+    //Out of range page request response and return 204 status if result set is empty
+    if (pageNumber < 1 || pageNumber > totalpages) {
+      return {
+        status: 400,
+        body: JSON.stringify({
+          err: "Yo, that aint a valid page number dawg :(",
+        }),
+        headers: { "Content-Type": "application/json" },
+      };
+    } else if (resources.length === 0) {
+      return {
+        status: 200,
+        body: "Sorry to break it to you, your request was successful but ain't no content here fam.",
+        //body: JSON.stringify({ err: "This.Page.Is.....EMPTY!" }),
+        headers: { "Content-Type": "application/json" },
+      };
+    } else {
+      // Set up a response object with pagination headers
+      const response = {
+        body: JSON.stringify(resources),
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": resources.length,
+          "X-Total-Count": totalrows,
+          "X-Page-Size": pageSize,
+          "X-Page-Number": pageNumber,
+          "X-Page-Count": totalpages,
+        },
+      };
 
-    // Return the response
-    return response;
+      context.log("Content-Type header", response.headers["Content-Length"]);
+      // Return the response
+      return response;
+    }
   },
 });

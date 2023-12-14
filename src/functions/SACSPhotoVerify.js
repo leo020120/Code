@@ -132,6 +132,7 @@ module.exports = app.storageBlob("SACSPhotoVerify", {
 
       const faces = await response.json();
       console.log({ faces });
+      //console.log("RECTANGLE", faces.faceRectangle);
 
       //initialise resultDict object to carry check results
       let resultDict = {};
@@ -149,6 +150,8 @@ module.exports = app.storageBlob("SACSPhotoVerify", {
 
         //run series of checks using face api and add bool value to resultDict
         faces.forEach((face) => {
+          const rectangle = face.faceRectangle;
+          console.log("RECTANGLE", rectangle);
           const accessories = face.faceAttributes.accessories;
           const faceAttributes = face.faceAttributes;
           const headPose = faceAttributes.headPose;
@@ -217,42 +220,45 @@ module.exports = app.storageBlob("SACSPhotoVerify", {
 
       //if the photo has no issues then resize and send to 'thumbnails' container. If it fails then send an email to user explaining why.
       if (validCriteria) {
-        try {
-          // Get a reference to the source blob
-          const sourceBlobClient =
-            sourceContainerClient.getBlobClient(blobName);
+        async function produceThumbnail() {
+          try {
+            // Get a reference to the source blob
+            const sourceBlobClient =
+              sourceContainerClient.getBlobClient(blobName);
 
-          // Download the original blob content
-          const blobData = await sourceBlobClient.downloadToBuffer();
+            // Download the original blob content
+            const blobData = await sourceBlobClient.downloadToBuffer();
 
-          // Perform image resizing using 'sharp'
-          const resizedImageBuffer = await sharp(blobData)
-            .resize({ width: 200, height: 200 }) // Specify the desired thumbnail size here
-            .toBuffer();
+            // Perform image resizing using 'sharp'
+            const resizedImageBuffer = await sharp(blobData)
+              .resize({ width: 200, height: 200 }) // Specify the desired thumbnail size here
+              .toBuffer();
 
-          // Create a new blob URL with the generated name in the destination container
-          const destinationBlobClient =
-            destinationContainerClient.getBlockBlobClient(blobName);
+            // Create a new blob URL with the generated name in the destination container
+            const destinationBlobClient =
+              destinationContainerClient.getBlockBlobClient(blobName);
 
-          // Upload the resized image to the destination container
-          await destinationBlobClient.uploadData(resizedImageBuffer, {
-            blobHTTPHeaders: { blobContentType: "image/jpeg" },
-          });
+            // Upload the resized image to the destination container
+            await destinationBlobClient.uploadData(resizedImageBuffer, {
+              blobHTTPHeaders: { blobContentType: "image/jpeg" },
+            });
 
-          context.log(
-            `Resized image uploaded to "${destinationContainerName}".`
-          );
-        } catch (error) {
-          context.log(
-            `An error occurred while processing the blob. Error: ${error}`
-          );
-          context.log(
-            `An error occurred while moving the blob. Error: ${error.message}`
-          );
-          context.log(`Error code: ${error.code}`);
-          context.log(`Error details: ${JSON.stringify(error.details)}`);
-          context.log(`Error stack trace: ${error.stack}`);
+            context.log(
+              `Resized image uploaded to "${destinationContainerName}".`
+            );
+          } catch (error) {
+            context.log(
+              `An error occurred while processing the blob. Error: ${error}`
+            );
+            context.log(
+              `An error occurred while moving the blob. Error: ${error.message}`
+            );
+            context.log(`Error code: ${error.code}`);
+            context.log(`Error details: ${JSON.stringify(error.details)}`);
+            context.log(`Error stack trace: ${error.stack}`);
+          }
         }
+        produceThumbnail();
       } else {
         rejectEmail(resultDict, emailAddress).catch((error) => {
           console.log(error);
